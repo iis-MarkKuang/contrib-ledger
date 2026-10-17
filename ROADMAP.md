@@ -21,5 +21,6 @@
 | 15 | [T15 预置演示数据](tickets/T15-demo-fixtures.md) | 未开始 | T09, T14 |
 | 16 | [T17 模拟投票按钮](tickets/T17-mock-vote.md) | 未开始 | T10 |
 | — | [T16 社区挑战](tickets/T16-challenge.md) | 搁置 | T14，且用户确认还有时间 |
+| — | [T18 多人评分](tickets/T18-multi-scorer.md) | 可选 | T14，且用户确认还有时间 |
 
 T06 和 T10 不依赖合约写完，但 T01 先做，避免同时改两套空目录。
