@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type FormEvent } from "react";
 import { BrowserProvider } from "ethers";
 import {
   contractAddressFor,
@@ -20,6 +20,7 @@ import {
   type NetworkChoice,
 } from "./network";
 import { isMissingChain, isPendingWalletRequest } from "./wallet";
+import { fetchPending, removePending, submitContribution, type PendingItem } from "./submit";
 
 const STORAGE_KEY = "contrib-ledger-network";
 
@@ -33,8 +34,10 @@ export function App() {
   const [wallet, setWallet] = useState<WalletState>({});
   const [error, setError] = useState<string>();
   const expected = paramsForChoice(choice);
+  const address = contractAddressFor(choice);
   const wrongChain = wallet.chainId !== undefined && !isExpectedChain(wallet.chainId, expected.chainId);
   const switching = useRef(false);
+  const dashboardRefresh = useRef<{ refresh: () => void } | null>(null);
 
   useEffect(() => {
     const ethereum = window.ethereum;
@@ -132,7 +135,14 @@ export function App() {
         <p className="notice">当前钱包网络不是 {expected.chainName}。请在上面的框里重新选一次。</p>
       ) : null}
       {error ? <p className="notice notice-error">{error}</p> : null}
+      <SubmitPanel
+        contractAddress={address}
+        connected={wallet.account}
+        wrongChain={wrongChain}
+        onSubmitted={() => dashboardRefresh.current?.refresh()}
+      />
       <Dashboard
+        ref={dashboardRefresh}
         choice={choice}
         rpcUrl={expected.rpcUrl}
         explorer={expected.explorer}
@@ -142,17 +152,110 @@ export function App() {
   );
 }
 
-function Dashboard({
-  choice,
-  rpcUrl,
-  explorer,
+function SubmitPanel({
+  contractAddress,
   connected,
+  wrongChain,
+  onSubmitted,
 }: {
+  contractAddress?: string;
+  connected?: string;
+  wrongChain: boolean;
+  onSubmitted: () => void;
+}) {
+  const serverUrl = import.meta.env.VITE_SERVER_URL;
+  const [items, setItems] = useState<PendingItem[]>([]);
+  const [loadError, setLoadError] = useState<string>();
+  const [busy, setBusy] = useState<string>();
+  const [submitError, setSubmitError] = useState<string>();
+  const [lastTx, setLastTx] = useState<string>();
+
+  const reload = () => {
+    setSubmitError(undefined);
+    void fetchPending(serverUrl)
+      .then(setItems)
+      .catch((cause: unknown) => setLoadError(message(cause)));
+  };
+
+  useEffect(reload, [serverUrl]);
+
+  async function submitOne(item: PendingItem) {
+    if (!window.ethereum) {
+      setSubmitError("请先安装 MetaMask。");
+      return;
+    }
+    if (!connected) {
+      setSubmitError("请先连接 MetaMask。");
+      return;
+    }
+    if (wrongChain) {
+      setSubmitError("钱包网络不对，请先在上面的网络框里切到当前网络。");
+      return;
+    }
+    if (!contractAddress) {
+      setSubmitError("当前网络没有配置合约地址。");
+      return;
+    }
+    setBusy(item.repo + "#" + item.prOrIssueId);
+    setSubmitError(undefined);
+    setLastTx(undefined);
+    try {
+      const txHash = await submitContribution(window.ethereum, contractAddress, item);
+      setLastTx(txHash);
+      await removePending(serverUrl, item.repo, item.prOrIssueId);
+      setItems((prev) => prev.filter((p) => p.repo !== item.repo || p.prOrIssueId !== item.prOrIssueId));
+      onSubmitted();
+    } catch (cause) {
+      if (isPendingWalletRequest(cause)) {
+        setSubmitError("MetaMask 已有一个待确认的请求。请先在钱包弹窗里完成或关闭它。");
+      } else {
+        setSubmitError(message(cause));
+      }
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
+  if (items.length === 0 && !loadError) return null;
+
+  return (
+    <section className="submit-panel">
+      <h2>待提交</h2>
+      {loadError ? <p className="notice notice-error">{loadError}</p> : null}
+      <ul className="pending-list">
+        {items.map((item) => (
+          <li key={`${item.repo}#${item.prOrIssueId}`}>
+            <span className="pending-title">{item.title || `${item.repo} #${item.prOrIssueId}`}</span>
+            <span className="pending-meta">
+              {item.kind === "pull_request" ? "PR" : "Issue"} {item.prOrIssueId} · {item.valuationScore} 分
+            </span>
+            <button
+              type="button"
+              disabled={busy !== undefined || !connected || wrongChain || !contractAddress}
+              onClick={() => void submitOne(item)}
+            >
+              {busy === `${item.repo}#${item.prOrIssueId}` ? "提交中…" : "提交这条"}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {submitError ? <p className="notice notice-error">{submitError}</p> : null}
+      {lastTx ? <p className="account">已上链 {shortAddress(lastTx)}</p> : null}
+    </section>
+  );
+}
+
+type DashboardProps = {
   choice: NetworkChoice;
   rpcUrl: string;
   explorer?: string;
   connected?: string;
-}) {
+};
+
+const Dashboard = forwardRef<{ refresh: () => void }, DashboardProps>(function Dashboard(
+  { choice, rpcUrl, explorer, connected },
+  ref,
+) {
   const address = contractAddressFor(choice);
   const [rows, setRows] = useState<ContributionRow[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -196,6 +299,18 @@ function Dashboard({
       cancelled = true;
     };
   }, [rpcUrl, address]);
+
+  useImperativeHandle(ref, () => ({
+    refresh: () => {
+      if (!address) return;
+      void listContributions(rpcUrl, address)
+        .then((next) => {
+          setRows(next);
+          setLoaded(true);
+        })
+        .catch((cause: unknown) => setLoadError(message(cause)));
+    },
+  }), [rpcUrl, address]);
 
   async function queryHolder(event: FormEvent) {
     event.preventDefault();
@@ -258,7 +373,7 @@ function Dashboard({
       {holderError ? <p className="notice notice-error">{holderError}</p> : null}
     </section>
   );
-}
+});
 
 function shortAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;

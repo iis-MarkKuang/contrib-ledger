@@ -132,6 +132,43 @@ button:hover {
   border-color: #e7b2ab;
 }
 
+.submit-panel {
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e2d5c3;
+}
+
+.submit-panel h2 {
+  margin: 0 0 0.75rem;
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  font-size: 1.5rem;
+}
+
+.pending-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pending-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid #efe4d4;
+}
+
+.pending-title {
+  flex: 1 1 100%;
+  font-weight: 600;
+}
+
+.pending-meta {
+  color: #6b5d4a;
+  font-size: 0.9rem;
+}
+
 .dashboard {
   margin-top: 2rem;
   padding-top: 1.25rem;

@@ -15,8 +15,8 @@
 | 9 | [T09 GitHub webhook](tickets/T09-webhook.md) | 完成 | T07, T08 |
 | 10 | [T10 前端壳与钱包](tickets/T10-web-shell.md) | 完成 | T01 |
 | 11 | [T11 看板读链](tickets/T11-dashboard.md) | 完成 | T05, T10 |
-| 12 | [T12 提交一笔](tickets/T12-submit-one.md) | 下一张 | T08, T11 |
-| 13 | [T13 并发提交](tickets/T13-submit-batch.md) | 未开始 | T12 |
+| 12 | [T12 提交一笔](tickets/T12-submit-one.md) | 完成 | T08, T11 |
+| 13 | [T13 并发提交](tickets/T13-submit-batch.md) | 下一张 | T12 |
 | 14 | [T14 测试网部署](tickets/T14-testnet-deploy.md) | 未开始 | T05, T13 |
 | 15 | [T15 预置演示数据](tickets/T15-demo-fixtures.md) | 未开始 | T09, T14 |
 | 16 | [T17 模拟投票按钮](tickets/T17-mock-vote.md) | 未开始 | T10 |

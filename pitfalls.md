@@ -64,6 +64,10 @@ Anvil 的默认账户是公开测试钥。T05 的部署命令和 T08 的测试�
 
 页面以前只读 `VITE_CONTRACT_ADDRESS`。切到 Anvil 之后，RPC 变成 `127.0.0.1:8545`，合约地址还是测试网那一个，本地节点上没有这份代码。现在测试网用 `VITE_CONTRACT_ADDRESS`，Anvil 用 `VITE_ANVIL_CONTRACT_ADDRESS`。贡献列表在切换时先清空，避免旧网络的记录留在页面上。
 
+## Shell 环境变量会盖掉 .env {#shell-env-override}
+
+`node --env-file` 和 Vite 都不覆盖已经存在的 shell 环境变量。之前在 shell 里 `export CHAIN_ID=31337` 和 `export CONTRACT_ADDRESS=`（空）后，后端读到的就是 31337 和空，不是 `.env` 里的 10143 和测试网合约地址。签名配置因此判为不完整，webhook 返回 503。启动后端和 Vite 前都要 `env -u` 把可能被覆盖的变量清掉：`CHAIN_ID`、`CONTRACT_ADDRESS`、`VITE_CONTRACT_ADDRESS`、`VITE_ANVIL_CONTRACT_ADDRESS`。
+
 ## 委托代码不是注册表 {#eip-7702-code}
 
 Anvil 默认账户 `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266` 在 Monad 测试网上的 `eth_getCode` 不是 `0x`，而是 `0xef0100` 加 20 字节地址。这是 EIP-7702 委托，不是 `ContributionRegistry`。判断合约要排除这种 23 字节代码，否则页面会把它显示成一份没有贡献的合约。MetaMask 账户换链后地址不变，不要把它写成某一条链专属的地址。

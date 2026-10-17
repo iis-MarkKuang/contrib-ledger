@@ -22,4 +22,4 @@ Anvil 上走通：后端产出一条签名，页面提交，`getContributorScore
 
 ## 完成状态
 
-未开始
+完成。进度：[progress/T12-submit-one.md](../progress/T12-submit-one.md)。

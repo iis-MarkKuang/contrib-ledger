@@ -38,3 +38,15 @@ export function resetPending(): void {
   items.length = 0;
   nextNonce = 1n;
 }
+
+/** Remove a pending submission after it is confirmed on chain. Returns true if found. */
+export function removePending(repo: string, prOrIssueId: string): boolean {
+  const before = items.length;
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].repo === repo && items[i].prOrIssueId === prOrIssueId) {
+      items.splice(i, 1);
+      return true;
+    }
+  }
+  return before !== items.length;
+}

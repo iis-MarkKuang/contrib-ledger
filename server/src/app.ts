@@ -1,6 +1,6 @@
 import express from "express";
 import type { IncomingMessage } from "node:http";
-import { pendingSubmissions } from "./pending.js";
+import { pendingSubmissions, removePending } from "./pending.js";
 import { handleWebhook } from "./webhook.js";
 
 export function createApp() {
@@ -13,12 +13,34 @@ export function createApp() {
     }),
   );
 
+  app.use((_req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type");
+    if (_req.method === "OPTIONS") {
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
+
   app.get("/health", (_req, res) => {
     res.json({ ok: true, service: "contrib-ledger" });
   });
 
   app.get("/pending", (_req, res) => {
     res.json(pendingSubmissions());
+  });
+
+  app.delete("/pending/:repo/:prOrIssueId", (req, res) => {
+    const repo = decodeURIComponent(req.params.repo);
+    const prOrIssueId = req.params.prOrIssueId;
+    if (!repo || !prOrIssueId) {
+      res.status(400).json({ error: "repo and prOrIssueId are required" });
+      return;
+    }
+    const removed = removePending(repo, prOrIssueId);
+    res.status(removed ? 200 : 404).json({ ok: removed });
   });
 
   app.post("/webhook", (req, res, next) => {
