@@ -1,0 +1,13 @@
+---
+description: Foundry and Monad checks when editing Solidity
+globs: "**/*.{sol,toml}"
+alwaysApply: false
+---
+
+# Solidity on Monad
+
+Before writing or deploying contracts, read `.cursor/skills/monskill/SKILL.md`, then `gas` and `addresses`.
+
+- `foundry.toml` must set `network = "monad"`. Foundry must be v1.8 or newer.
+- Monad charges gas limit, not gas used. Set the limit explicitly when it is known.
+- Do not paste an address into source until the `addresses` skill and `eth_getCode` on chain id 10143 both agree it has code.

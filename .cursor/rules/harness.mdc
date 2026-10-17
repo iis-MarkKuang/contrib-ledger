@@ -1,0 +1,16 @@
+---
+description: Verify facts, ask when a choice is open, and load Monad skills before chain work
+alwaysApply: true
+---
+
+# Harness
+
+Follow `AGENTS.md`. Details live in `docs/`, not in this rule.
+
+- Do not assume chain ids, RPC URLs, addresses, gas, or verifier endpoints. Read the linked doc or run a command. If two sources disagree, stop and tell the user.
+- Do not pick an unstated wallet, framework, bridge, oracle, or MCP. Ask.
+- For Monad work, read `.cursor/skills/monskill/SKILL.md` first, then only the topic skill it names.
+- Do not copy secrets, private keys, or path-keyed RPC URLs into the repo, logs, or chat.
+- Do not install or log in to the Alchemy, Para, Envio, or contract.dev CLIs for the user.
+- Do not fork the Monad client or adopt contract.dev. See `docs/monad-fork.md`.
+- Before product code, update `SOLUTION.md` if the design changed. Implement only the single ticket `ROADMAP.md` says is next. A ticket stays open until its verification command has been run.
