@@ -13,6 +13,7 @@ export type ContributionRow = {
   prId: string;
   score: string;
   txHash: string;
+  blockNumber: number;
 };
 
 /** Public Monad testnet RPC rejects eth_getLogs when toBlock - fromBlock is greater than 100. */
@@ -87,6 +88,7 @@ export async function listContributions(rpcUrl: string, address: string): Promis
     prId: String(log.args.prOrIssueId),
     score: String(log.args.valuationScore),
     txHash: log.transactionHash,
+    blockNumber: Number(log.blockNumber),
   }));
 }
 
@@ -111,7 +113,7 @@ function registry(rpcUrl: string, address: string): Contract {
   return new Contract(address, abi, new JsonRpcProvider(rpcUrl));
 }
 
-type ParsedLog = { args: Record<string, unknown>; transactionHash: string };
+type ParsedLog = { args: Record<string, unknown>; transactionHash: string; blockNumber: number };
 
 async function queryInWindows(
   contract: Contract,
@@ -125,7 +127,7 @@ async function queryInWindows(
   for (const [start, end] of logWindows(from, latest)) {
     for (const log of await contract.queryFilter(filter, start, end)) {
       if (!("args" in log)) continue;
-      logs.push({ args: log.args as Record<string, unknown>, transactionHash: log.transactionHash });
+      logs.push({ args: log.args as Record<string, unknown>, transactionHash: log.transactionHash, blockNumber: log.blockNumber });
     }
   }
   return logs;

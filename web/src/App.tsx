@@ -20,7 +20,7 @@ import {
   type NetworkChoice,
 } from "./network";
 import { isMissingChain, isPendingWalletRequest } from "./wallet";
-import { fetchPending, removePending, submitContribution, type PendingItem } from "./submit";
+import { fetchPending, generateBatch, removePending, submitBatch, submitContribution, type BatchResult, type PendingItem } from "./submit";
 
 const STORAGE_KEY = "contrib-ledger-network";
 
@@ -169,6 +169,9 @@ function SubmitPanel({
   const [busy, setBusy] = useState<string>();
   const [submitError, setSubmitError] = useState<string>();
   const [lastTx, setLastTx] = useState<string>();
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number }>();
+  const [batchResults, setBatchResults] = useState<BatchResult[]>();
+  const [batchBusy, setBatchBusy] = useState(false);
 
   const reload = () => {
     setSubmitError(undefined);
@@ -179,28 +182,25 @@ function SubmitPanel({
 
   useEffect(reload, [serverUrl]);
 
+  function checkCanSubmit(): string | undefined {
+    if (!window.ethereum) return "请先安装 MetaMask。";
+    if (!connected) return "请先连接 MetaMask。";
+    if (wrongChain) return "钱包网络不对，请先在上面的网络框里切到当前网络。";
+    if (!contractAddress) return "当前网络没有配置合约地址。";
+    return undefined;
+  }
+
   async function submitOne(item: PendingItem) {
-    if (!window.ethereum) {
-      setSubmitError("请先安装 MetaMask。");
-      return;
-    }
-    if (!connected) {
-      setSubmitError("请先连接 MetaMask。");
-      return;
-    }
-    if (wrongChain) {
-      setSubmitError("钱包网络不对，请先在上面的网络框里切到当前网络。");
-      return;
-    }
-    if (!contractAddress) {
-      setSubmitError("当前网络没有配置合约地址。");
+    const err = checkCanSubmit();
+    if (err) {
+      setSubmitError(err);
       return;
     }
     setBusy(item.repo + "#" + item.prOrIssueId);
     setSubmitError(undefined);
     setLastTx(undefined);
     try {
-      const txHash = await submitContribution(window.ethereum, contractAddress, item);
+      const txHash = await submitContribution(window.ethereum!, contractAddress!, item);
       setLastTx(txHash);
       await removePending(serverUrl, item.repo, item.prOrIssueId);
       setItems((prev) => prev.filter((p) => p.repo !== item.repo || p.prOrIssueId !== item.prOrIssueId));
@@ -216,12 +216,73 @@ function SubmitPanel({
     }
   }
 
-  if (items.length === 0 && !loadError) return null;
+  async function submitBatchAll() {
+    const err = checkCanSubmit();
+    if (err) {
+      setSubmitError(err);
+      return;
+    }
+    if (items.length === 0) {
+      setSubmitError("没有待提交的载荷。先点「生成 50 条」或等 webhook。");
+      return;
+    }
+    setBatchBusy(true);
+    setSubmitError(undefined);
+    setBatchResults(undefined);
+    setBatchProgress({ done: 0, total: items.length });
+    try {
+      const results = await submitBatch(window.ethereum!, contractAddress!, items, (done, total) =>
+        setBatchProgress({ done, total }),
+      );
+      setBatchResults(results);
+      const okItems = new Set(results.filter((r) => r.ok).map((r) => `${r.item.repo}#${r.item.prOrIssueId}`));
+      for (const r of results) {
+        if (r.ok) await removePending(serverUrl, r.item.repo, r.item.prOrIssueId);
+      }
+      setItems((prev) => prev.filter((p) => !okItems.has(`${p.repo}#${p.prOrIssueId}`)));
+      onSubmitted();
+    } catch (cause) {
+      setSubmitError(message(cause));
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
+  async function generateBatchItems() {
+    setSubmitError(undefined);
+    try {
+      await generateBatch(serverUrl, 50);
+      reload();
+    } catch (cause) {
+      setSubmitError(message(cause));
+    }
+  }
 
   return (
     <section className="submit-panel">
       <h2>待提交</h2>
       {loadError ? <p className="notice notice-error">{loadError}</p> : null}
+      <div className="batch-bar">
+        <button
+          type="button"
+          disabled={batchBusy || !connected || wrongChain || !contractAddress}
+          onClick={() => void generateBatchItems()}
+        >
+          生成 50 条
+        </button>
+        <button
+          type="button"
+          disabled={batchBusy || busy !== undefined || items.length === 0 || !connected || wrongChain || !contractAddress}
+          onClick={() => void submitBatchAll()}
+        >
+          {batchBusy ? "并发提交中…" : "并发提交全部"}
+        </button>
+        {batchProgress ? (
+          <span className="pending-meta">
+            {batchBusy ? "进度" : "完成"} {batchProgress.done}/{batchProgress.total}
+          </span>
+        ) : null}
+      </div>
       <ul className="pending-list">
         {items.map((item) => (
           <li key={`${item.repo}#${item.prOrIssueId}`}>
@@ -231,7 +292,7 @@ function SubmitPanel({
             </span>
             <button
               type="button"
-              disabled={busy !== undefined || !connected || wrongChain || !contractAddress}
+              disabled={busy !== undefined || batchBusy || !connected || wrongChain || !contractAddress}
               onClick={() => void submitOne(item)}
             >
               {busy === `${item.repo}#${item.prOrIssueId}` ? "提交中…" : "提交这条"}
@@ -241,6 +302,11 @@ function SubmitPanel({
       </ul>
       {submitError ? <p className="notice notice-error">{submitError}</p> : null}
       {lastTx ? <p className="account">已上链 {shortAddress(lastTx)}</p> : null}
+      {batchResults ? (
+        <p className="account">
+          并发完成 {batchResults.filter((r) => r.ok).length} 成功、{batchResults.filter((r) => !r.ok).length} 失败
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -346,6 +412,7 @@ const Dashboard = forwardRef<{ refresh: () => void }, DashboardProps>(function D
                 <span>{shortAddress(row.contributor)}</span>
                 <span>PR {row.prId}</span>
                 <span>{row.score} 分</span>
+                <span className="block-num">#{row.blockNumber}</span>
                 {href ? (
                   <a href={href}>交易</a>
                 ) : (

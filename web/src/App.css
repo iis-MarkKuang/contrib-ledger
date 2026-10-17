@@ -189,10 +189,23 @@ button:hover {
 
 .contrib-list li {
   display: grid;
-  grid-template-columns: 1.4fr 0.7fr 0.6fr auto;
+  grid-template-columns: 1.4fr 0.7fr 0.6fr 0.6fr auto;
   gap: 0.75rem;
   padding: 0.7rem 0;
   border-bottom: 1px solid #efe4d4;
+}
+
+.block-num {
+  color: #6b5d4a;
+  font-size: 0.85rem;
+}
+
+.batch-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
 }
 
 .contrib-list a {

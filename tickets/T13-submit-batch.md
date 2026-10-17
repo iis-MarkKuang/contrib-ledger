@@ -22,4 +22,4 @@ Anvil 上点一次按钮，成功条数等于 50，合约里 50 个 nonce 都被
 
 ## 完成状态
 
-未开始
+完成。进度：[progress/T13-submit-batch.md](../progress/T13-submit-batch.md)。
