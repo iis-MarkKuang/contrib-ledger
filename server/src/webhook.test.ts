@@ -5,6 +5,7 @@ import type { Server } from "node:http";
 import { describe, it, beforeEach } from "node:test";
 import { createApp } from "./app.js";
 import { resetPending } from "./pending.js";
+import { resetVoting } from "./voting.js";
 
 const SECRET = "test-webhook-secret";
 const CONTRIBUTOR = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
@@ -12,6 +13,7 @@ const CONTRIBUTOR = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 describe("webhook", () => {
   beforeEach(() => {
     resetPending();
+    resetVoting();
     process.env.GITHUB_WEBHOOK_SECRET = SECRET;
     process.env.MAINTAINER_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
     process.env.DEMO_CONTRIBUTOR_ADDRESS = CONTRIBUTOR;
@@ -30,17 +32,20 @@ describe("webhook", () => {
       });
       assert.equal(merged.status, 200);
 
-      const pending = (await (await fetch(`${base}/pending`)).json()) as Array<{
+      const voting = (await (await fetch(`${base}/voting`)).json()) as Array<{
         prOrIssueId: string;
-        valuationScore: string;
-        contributor: string;
-        signature: string;
+        repo: string;
+        voteCount: number;
+        threshold: number;
       }>;
-      assert.equal(pending.length, 1);
-      assert.equal(pending[0].prOrIssueId, "7");
-      assert.equal(pending[0].valuationScore, "35");
-      assert.equal(pending[0].contributor, CONTRIBUTOR);
-      assert.equal(pending[0].signature.startsWith("0x"), true);
+      assert.equal(voting.length, 1);
+      assert.equal(voting[0].prOrIssueId, "7");
+      assert.equal(voting[0].repo, "iis-MarkKuang/contrib-ledger-demo");
+      assert.equal(voting[0].voteCount, 0);
+      assert.equal(voting[0].threshold, 3);
+
+      const pending = (await (await fetch(`${base}/pending`)).json()) as unknown[];
+      assert.equal(pending.length, 0);
 
       const unmerged = await post(base, "pull_request", {
         action: "closed",
@@ -48,7 +53,7 @@ describe("webhook", () => {
         repository: { full_name: "iis-MarkKuang/contrib-ledger-demo" },
       });
       assert.equal(unmerged.status, 200);
-      assert.equal(((await (await fetch(`${base}/pending`)).json()) as unknown[]).length, 1);
+      assert.equal(((await (await fetch(`${base}/voting`)).json()) as unknown[]).length, 1);
 
       const bad = await fetch(`${base}/webhook`, {
         method: "POST",

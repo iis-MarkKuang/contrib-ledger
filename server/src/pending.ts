@@ -10,7 +10,10 @@ export type PendingSubmission = {
 };
 
 const items: PendingSubmission[] = [];
-let nextNonce = 1n;
+// Start nonces at a millisecond timestamp so a server restart never reuses a
+// nonce that was already consumed onchain by a previous run. The contract's
+// nonce is an arbitrary uint256, not required to be contiguous.
+let nextNonce = BigInt(Date.now());
 
 export function pendingSubmissions(): PendingSubmission[] {
   return [...items];
@@ -36,7 +39,7 @@ export function addPending(item: PendingSubmission): void {
 
 export function resetPending(): void {
   items.length = 0;
-  nextNonce = 1n;
+  nextNonce = BigInt(Date.now());
 }
 
 /** Remove a pending submission after it is confirmed on chain. Returns true if found. */

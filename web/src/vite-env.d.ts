@@ -4,6 +4,8 @@ interface ImportMetaEnv {
   readonly VITE_CHAIN_ID: string;
   readonly VITE_CONTRACT_ADDRESS: string;
   readonly VITE_ANVIL_CONTRACT_ADDRESS: string;
+  readonly VITE_REDEEM_ADDRESS?: string;
+  readonly VITE_ANVIL_REDEEM_ADDRESS?: string;
 }
 
 interface ImportMeta {

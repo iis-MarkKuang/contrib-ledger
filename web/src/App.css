@@ -255,3 +255,73 @@ button:hover {
     grid-template-columns: 1fr;
   }
 }
+
+.vote-panel {
+  background: #f7f1e3;
+  border: 1px solid #d4c5a0;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+}
+.vote-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+}
+.vote-list li {
+  border-bottom: 1px solid #e0d5b0;
+  padding: 0.5rem 0;
+}
+.vote-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.vote-row .pending-title { flex: 1; min-width: 12rem; }
+.vote-detail { margin-top: 0.5rem; }
+.vote-scores {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.vote-scores li {
+  display: flex;
+  gap: 0.25rem;
+  background: #fff;
+  border: 1px solid #d4c5a0;
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.85rem;
+}
+.vote-input {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.vote-input input {
+  width: 5rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid #b8a880;
+  border-radius: 4px;
+}
+
+.mock-vote {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed #b8a880;
+}
+.mock-vote button {
+  background: #d4c5a0;
+  border: 1px solid #b8a880;
+  border-radius: 4px;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+.mock-vote button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}

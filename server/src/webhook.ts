@@ -1,10 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Request } from "express";
 import { isAddress } from "ethers";
-import { DEMO_SCORE_INPUT } from "./demoValuation.js";
-import { addPending, countPending, findPending, takeNonce, type PendingSubmission } from "./pending.js";
+import { addPending, findPending, takeNonce, type PendingSubmission } from "./pending.js";
+import { addVotingTask, findTask } from "./voting.js";
 import { signContribution } from "./sign.js";
-import { valueContribution } from "./valuation.js";
 
 type WebhookBody = {
   action?: string;
@@ -28,36 +27,49 @@ export async function handleWebhook(req: Request): Promise<{ status: number; bod
   const work = acceptedWork(req.header("x-github-event"), payload);
   if (!work) return { status: 200, body: { ok: true, recorded: false } };
 
-  const existing = findPending(work.repo, String(work.number));
-  if (existing) return { status: 200, body: { ok: true, recorded: true } };
+  // Already signed and in pending list (e.g. from /pending/seed or a previous vote round)
+  if (findPending(work.repo, String(work.number))) {
+    return { status: 200, body: { ok: true, recorded: true } };
+  }
+  // Already has a voting task
+  if (findTask(work.repo, String(work.number))) {
+    return { status: 200, body: { ok: true, recorded: true } };
+  }
 
-  const signing = readSigningConfig();
-  if (!signing) return { status: 503, body: { error: "signing config is incomplete" } };
-
-  const nonce = takeNonce();
-  const valuationScore = valueContribution({
-    ...DEMO_SCORE_INPUT,
-    scoredInWindow: countPending(signing.contributor),
+  // Create a voting task instead of signing immediately. Community scores first.
+  addVotingTask({
+    repo: work.repo,
+    prOrIssueId: String(work.number),
+    kind: work.kind,
+    title: work.title,
+    createdAt: Date.now(),
   });
+  return { status: 200, body: { ok: true, recorded: true, voting: true } };
+}
+
+/** Sign a contribution after the vote threshold is met. Called from the vote endpoint. */
+export async function finalizeVote(repo: string, prOrIssueId: string, kind: PendingSubmission["kind"], title: string, score: number): Promise<void> {
+  const signing = readSigningConfig();
+  if (!signing) throw new Error("signing config is incomplete");
+  const nonce = takeNonce();
   const signature = await signContribution(signing.privateKey, signing.chainId, signing.contractAddress, {
     contributor: signing.contributor,
-    prOrIssueId: BigInt(work.number),
-    valuationScore: BigInt(valuationScore),
-    repo: work.repo,
+    prOrIssueId: BigInt(prOrIssueId),
+    valuationScore: BigInt(score),
+    repo,
     nonce,
   });
   const item: PendingSubmission = {
     contributor: signing.contributor,
-    prOrIssueId: String(work.number),
-    valuationScore: String(valuationScore),
-    repo: work.repo,
+    prOrIssueId: String(prOrIssueId),
+    valuationScore: String(score),
+    repo,
     nonce: nonce.toString(),
     signature,
-    kind: work.kind,
-    title: work.title,
+    kind,
+    title,
   };
   addPending(item);
-  return { status: 200, body: { ok: true, recorded: true } };
 }
 
 function acceptedWork(

@@ -99,6 +99,36 @@ N 用 50。不够讲清楚再加，不超过 100，避免打满公共 RPC。
 
 Webhook 不分析 diff。每条演示记录用基础分 10、质量分 10、规模分 10、维护者分 5。窗口计数是当前进程里，这个地址已经进入待提交列表的条数。
 
+## 多人评分（链下）
+
+估值不再由维护者一人定分，改为社区多人评分，合约零改动：
+
+```mermaid
+sequenceDiagram
+    participant GH as GitHub
+    participant S as server
+    participant V as 评分者 MetaMask
+    participant W as 贡献者 MetaMask
+    participant C as ContributionRegistry
+
+    GH->>S: pull_request merged
+    S->>S: 创建评分任务（不签名）
+    V->>S: 钱包签名认证 + 提交评分
+    V->>S: 钱包签名认证 + 提交评分
+    V->>S: 钱包签名认证 + 提交评分
+    S->>S: 达到阈值（3 人），取平均分
+    S->>S: 维护者 EIP-712 签名
+    S-->>W: contributor, prId, score, nonce, signature
+    W->>C: submitContribution(...)
+    C->>C: 验签、记账、mint
+```
+
+- 评分者用 MetaMask 对 `(repo, prOrIssueId, score)` 做个人签名（EIP-191），后端 `ecrecover` 出地址作为身份。同一地址对同一 PR 只评一次。
+- 阈值固定 3 人。达到后后端取平均分（向下取整），维护者按现有 EIP-712 流程签名，载荷进入 pending 列表。
+- 评分窗口内未达阈值，不签名、不上链（演示不设超时自动通过，避免水 PR）。
+- 合约不存评分、不存评分者、不聚合——全部链下。上链的仍是单个维护者签名载荷，验签逻辑不变。
+- 演示时用户用 MetaMask 匿名模式多登录几个账户模拟多人。
+
 ## 演示地址
 
 演示不另建一批钱包：

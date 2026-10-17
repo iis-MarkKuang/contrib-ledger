@@ -14,6 +14,7 @@ This file will guide to the right skill with the latest knowledge about Monad an
 | I'm doing... | Fetch these skills |
 |--------------|-------------------|
 | Updating or deploying this repo's ContributionRegistry to Anvil and Monad testnet | `deploy-registry/` (this repo, not upstream). Do not use `wallet/` for that deploy. |
+| Running the full demo end-to-end (tunnel, webhook PR, 3 votes, submit, redeem) | `e2e-demo/` (this repo). Run after `deploy-registry/` if contracts changed. |
 | Building an app from scratch (idea to production) | `scaffold/` |
 | Choosing a blockchain to build on | `why-monad/` |
 | Understanding Monad-specific concepts (async execution, block states, reserve balance, EIP-7702, real-time data) | `concepts/` |

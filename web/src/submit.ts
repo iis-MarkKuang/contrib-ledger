@@ -55,18 +55,6 @@ export type BatchResult = {
   error?: string;
 };
 
-/** Generate batch pending items on the server, then submit them all concurrently. */
-export async function generateBatch(serverUrl: string, count: number): Promise<number> {
-  const res = await fetch(`${serverUrl}/pending/batch`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ count }),
-  });
-  if (!res.ok) throw new Error(`生成批量载荷失败 (${res.status})`);
-  const body = (await res.json()) as { count: number };
-  return body.count;
-}
-
 export async function submitBatch(
   provider: Eip1193Provider,
   contractAddress: string,

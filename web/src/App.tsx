@@ -7,6 +7,9 @@ import {
   lookupTarget,
   parseAddress,
   readContributor,
+  readRedeemStatus,
+  redeemAddressFor,
+  redeemBadge,
   txUrl,
   type ContributionRow,
 } from "./ledger";
@@ -20,7 +23,8 @@ import {
   type NetworkChoice,
 } from "./network";
 import { isMissingChain, isPendingWalletRequest } from "./wallet";
-import { fetchPending, generateBatch, removePending, submitBatch, submitContribution, type BatchResult, type PendingItem } from "./submit";
+import { fetchPending, removePending, submitBatch, submitContribution, type BatchResult, type PendingItem } from "./submit";
+import { fetchTasks, fetchVotes, submitVote, type VoteTask, type VoteInfo } from "./vote";
 
 const STORAGE_KEY = "contrib-ledger-network";
 
@@ -42,7 +46,7 @@ export function App() {
   useEffect(() => {
     const ethereum = window.ethereum;
     if (!ethereum) return;
-    void readWallet().then(setWallet);
+    void restoreWallet().then(setWallet);
     const onChange = () => {
       void readWallet().then(setWallet);
     };
@@ -140,6 +144,19 @@ export function App() {
         connected={wallet.account}
         wrongChain={wrongChain}
         onSubmitted={() => dashboardRefresh.current?.refresh()}
+      />
+      <VotePanel
+        connected={wallet.account}
+        onFinalized={() => {
+          dashboardRefresh.current?.refresh();
+        }}
+      />
+      <RedeemPanel
+        rpcUrl={expected.rpcUrl}
+        redeemAddress={redeemAddressFor(choice)}
+        connected={wallet.account}
+        wrongChain={wrongChain}
+        onRedeemed={() => dashboardRefresh.current?.refresh()}
       />
       <Dashboard
         ref={dashboardRefresh}
@@ -248,41 +265,10 @@ function SubmitPanel({
     }
   }
 
-  async function generateBatchItems() {
-    setSubmitError(undefined);
-    try {
-      await generateBatch(serverUrl, 50);
-      reload();
-    } catch (cause) {
-      setSubmitError(message(cause));
-    }
-  }
-
   return (
     <section className="submit-panel">
       <h2>待提交</h2>
       {loadError ? <p className="notice notice-error">{loadError}</p> : null}
-      <div className="batch-bar">
-        <button
-          type="button"
-          disabled={batchBusy || !connected || wrongChain || !contractAddress}
-          onClick={() => void generateBatchItems()}
-        >
-          生成 50 条
-        </button>
-        <button
-          type="button"
-          disabled={batchBusy || busy !== undefined || items.length === 0 || !connected || wrongChain || !contractAddress}
-          onClick={() => void submitBatchAll()}
-        >
-          {batchBusy ? "并发提交中…" : "并发提交全部"}
-        </button>
-        {batchProgress ? (
-          <span className="pending-meta">
-            {batchBusy ? "进度" : "完成"} {batchProgress.done}/{batchProgress.total}
-          </span>
-        ) : null}
-      </div>
       <ul className="pending-list">
         {items.map((item) => (
           <li key={`${item.repo}#${item.prOrIssueId}`}>
@@ -290,13 +276,6 @@ function SubmitPanel({
             <span className="pending-meta">
               {item.kind === "pull_request" ? "PR" : "Issue"} {item.prOrIssueId} · {item.valuationScore} 分
             </span>
-            <button
-              type="button"
-              disabled={busy !== undefined || batchBusy || !connected || wrongChain || !contractAddress}
-              onClick={() => void submitOne(item)}
-            >
-              {busy === `${item.repo}#${item.prOrIssueId}` ? "提交中…" : "提交这条"}
-            </button>
           </li>
         ))}
       </ul>
@@ -318,6 +297,247 @@ type DashboardProps = {
   connected?: string;
 };
 
+function VotePanel({
+  connected,
+  onFinalized,
+}: {
+  connected?: string;
+  onFinalized: () => void;
+}) {
+  const serverUrl = import.meta.env.VITE_SERVER_URL;
+  const [tasks, setTasks] = useState<VoteTask[]>([]);
+  const [voteInfo, setVoteInfo] = useState<Record<string, VoteInfo>>({});
+  const [scores, setScores] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string>();
+  const [error, setError] = useState<string>();
+  const [notice, setNotice] = useState<string>();
+
+  const reload = () => {
+    setError(undefined);
+    void fetchTasks(serverUrl)
+      .then(async (next) => {
+        setTasks(next);
+        // Auto-load vote details for every task so each PR shows its raters.
+        const entries = await Promise.all(
+          next.map(async (t) => {
+            const k = `${t.repo}/${t.prOrIssueId}`;
+            try {
+              const info = await fetchVotes(serverUrl, t.repo, t.prOrIssueId);
+              return [k, info] as const;
+            } catch {
+              return [k, undefined] as const;
+            }
+          }),
+        );
+        setVoteInfo((prev) => {
+          const merged = { ...prev };
+          for (const [k, info] of entries) {
+            if (info) merged[k] = info;
+          }
+          return merged;
+        });
+      })
+      .catch((cause: unknown) => setError(message(cause)));
+  };
+
+  // Reload when the connected account changes so a new voter sees the current
+  // tasks and can cast their own vote.
+  useEffect(reload, [serverUrl, connected]);
+
+  async function doVote(repo: string, prOrIssueId: string) {
+    if (!window.ethereum) {
+      setError("请先安装 MetaMask。");
+      return;
+    }
+    if (!connected) {
+      setError("请先连接 MetaMask。");
+      return;
+    }
+    const k = `${repo}/${prOrIssueId}`;
+    const raw = scores[k] ?? "";
+    const score = Number.parseInt(raw, 10);
+    if (!Number.isInteger(score) || score < 1 || score > 100) {
+      setError("分数必须是 1-100 的整数。");
+      return;
+    }
+    setBusy(k);
+    setError(undefined);
+    setNotice(undefined);
+    try {
+      const result = await submitVote(window.ethereum, serverUrl, repo, prOrIssueId, score);
+      if (!result.ok) {
+        setError(result.error ?? "评分失败");
+        return;
+      }
+      setNotice(`已评分 ${score} 分。当前 ${result.count}/${result.threshold} 票。${result.ready ? "已达阈值，载荷已生成。" : ""}`);
+      setScores((prev) => ({ ...prev, [k]: "" }));
+      if (result.ready) {
+        onFinalized();
+        reload();
+      } else {
+        const info = await fetchVotes(serverUrl, repo, prOrIssueId);
+        setVoteInfo((prev) => ({ ...prev, [k]: info }));
+        reload();
+      }
+    } catch (cause) {
+      setError(message(cause));
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
+  return (
+    <section className="vote-panel">
+      <h2>社区评分</h2>
+      <p className="hint">每个 PR 需要 {tasks[0]?.threshold ?? 3} 个评分者打分（1-100），达阈值后维护者签名生成载荷。用 MetaMask 匿名模式多登录几个账户模拟多人。</p>
+      {!connected ? <p className="notice">连接 MetaMask 后参与评分。</p> : null}
+      {error ? <p className="notice notice-error">{error}</p> : null}
+      {notice ? <p className="account">{notice}</p> : null}
+      {tasks.length === 0 && connected ? <p className="hint">暂无待评分 PR。合并一个 PR 到 contrib-ledger-demo 触发 webhook。</p> : null}
+      <ul className="vote-list">
+        {tasks.map((task) => {
+          const k = `${task.repo}/${task.prOrIssueId}`;
+          const info = voteInfo[k];
+          return (
+            <li key={k}>
+              <div className="vote-row">
+                <span className="pending-title">{task.title || `${task.repo} #${task.prOrIssueId}`}</span>
+                <span className="pending-meta">
+                  {task.repo}#{task.prOrIssueId} · {task.voteCount}/{task.threshold} 票
+                </span>
+              </div>
+              <div className="vote-detail">
+                {info && info.votes.length > 0 ? (
+                  <ul className="vote-scores">
+                    {info.votes.map((v) => (
+                      <li key={v.voter}>
+                        <span>{shortAddress(v.voter)}</span>
+                        <span>{v.score} 分</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="hint">暂无评分</p>
+                )}
+                <div className="vote-input">
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    placeholder="1-100"
+                    value={scores[k] ?? "35"}
+                    onChange={(e) => setScores((prev) => ({ ...prev, [k]: e.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    disabled={busy === k || !connected}
+                    onClick={() => void doVote(task.repo, task.prOrIssueId)}
+                  >
+                    {busy === k ? "签名中…" : "签名评分"}
+                  </button>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function RedeemPanel({
+  rpcUrl,
+  redeemAddress,
+  connected,
+  wrongChain,
+  onRedeemed,
+}: {
+  rpcUrl: string;
+  redeemAddress?: string;
+  connected?: string;
+  wrongChain: boolean;
+  onRedeemed: () => void;
+}) {
+  const [status, setStatus] = useState<{ available: string; used: string; badges: string }>();
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const [lastTx, setLastTx] = useState<string>();
+  const scoreCost = 35n;
+
+  async function reload() {
+    if (!redeemAddress || !connected) {
+      setStatus(undefined);
+      return;
+    }
+    setError(undefined);
+    try {
+      setStatus(await readRedeemStatus(rpcUrl, redeemAddress, connected));
+    } catch (cause) {
+      setError(message(cause));
+    }
+  }
+
+  useEffect(() => {
+    void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rpcUrl, redeemAddress, connected]);
+
+  async function doRedeem() {
+    if (!window.ethereum) {
+      setError("请先安装 MetaMask。");
+      return;
+    }
+    if (!connected) {
+      setError("请先连接 MetaMask。");
+      return;
+    }
+    if (wrongChain) {
+      setError("钱包网络不对，请先切到当前网络。");
+      return;
+    }
+    if (!redeemAddress) {
+      setError("当前网络没有配置兑换合约地址。");
+      return;
+    }
+    setBusy(true);
+    setError(undefined);
+    setLastTx(undefined);
+    try {
+      const txHash = await redeemBadge(window.ethereum, redeemAddress, scoreCost);
+      setLastTx(txHash);
+      await reload();
+      onRedeemed();
+    } catch (cause) {
+      setError(message(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="redeem-panel">
+      <h2>积分兑换</h2>
+      <p className="hint">用 {scoreCost.toString()} 积分兑换 1 个贡献徽章 NFT。积分来自你提交的贡献，徽章不可再换回积分。</p>
+      {!redeemAddress ? <p className="notice">当前网络没有配置兑换合约地址。</p> : null}
+      {!connected ? <p className="notice">连接 MetaMask 后查看你的可用积分。</p> : null}
+      {status ? (
+        <p className="account">
+          可用积分 {status.available} · 已兑换 {status.used} · 持有徽章 {status.badges}
+        </p>
+      ) : null}
+      <button
+        type="button"
+        disabled={busy || !connected || wrongChain || !redeemAddress}
+        onClick={() => void doRedeem()}
+      >
+        {busy ? "兑换中…" : `用 ${scoreCost.toString()} 积分兑换徽章`}
+      </button>
+      {error ? <p className="notice notice-error">{error}</p> : null}
+      {lastTx ? <p className="account">已上链 {shortAddress(lastTx)}</p> : null}
+    </section>
+  );
+}
+
 const Dashboard = forwardRef<{ refresh: () => void }, DashboardProps>(function Dashboard(
   { choice, rpcUrl, explorer, connected },
   ref,
@@ -327,7 +547,7 @@ const Dashboard = forwardRef<{ refresh: () => void }, DashboardProps>(function D
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string>();
   const [lookup, setLookup] = useState("");
-  const [holder, setHolder] = useState<{ score: string; tokenIds: string[] }>();
+  const [holder, setHolder] = useState<{ score: string; tokenIds: string[]; balance: bigint }>();
   const [holderError, setHolderError] = useState<string>();
 
   useEffect(() => {
@@ -434,7 +654,12 @@ const Dashboard = forwardRef<{ refresh: () => void }, DashboardProps>(function D
       </form>
       {holder ? (
         <p className="account">
-          积分 {holder.score}。声誉 NFT {holder.tokenIds.length === 0 ? "无" : holder.tokenIds.join(", ")}
+          积分 {holder.score}。声誉 NFT{" "}
+          {holder.balance > 0n
+            ? holder.tokenIds.length > 0
+              ? `${holder.balance.toString()} 个（#${holder.tokenIds.join(", #")}）`
+              : `${holder.balance.toString()} 个`
+            : "无"}
         </p>
       ) : null}
       {holderError ? <p className="notice notice-error">{holderError}</p> : null}
@@ -458,6 +683,23 @@ async function readWallet(): Promise<WalletState> {
   if (accounts.length === 0) return {};
   const network = await provider.getNetwork();
   return { account: accounts[0], chainId: network.chainId };
+}
+
+/** On page load, try to silently restore a previously-authorized connection.
+ *  `eth_accounts` only returns accounts the wallet has already exposed to this
+ *  dapp. If it returns empty, `eth_requestAccounts` will silently return the
+ *  authorized accounts without a popup (only prompts on first-ever connect). */
+async function restoreWallet(): Promise<WalletState> {
+  const provider = browserProvider();
+  if (!provider) return {};
+  const accounts = (await provider.send("eth_accounts", [])) as string[];
+  if (accounts.length > 0) return readWallet();
+  try {
+    await provider.send("eth_requestAccounts", []);
+    return readWallet();
+  } catch {
+    return {};
+  }
 }
 
 async function connect(): Promise<WalletState> {

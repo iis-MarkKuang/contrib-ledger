@@ -1,11 +1,20 @@
 import express from "express";
 import type { IncomingMessage } from "node:http";
-import { isAddress } from "ethers";
-import { addPending, countPending, findPending, pendingSubmissions, removePending, takeNonce, type PendingSubmission } from "./pending.js";
-import { handleWebhook } from "./webhook.js";
-import { signContribution } from "./sign.js";
-import { valueContribution } from "./valuation.js";
-import { DEMO_SCORE_INPUT } from "./demoValuation.js";
+import { isAddress, verifyMessage, getAddress } from "ethers";
+import { findPending, pendingSubmissions, removePending } from "./pending.js";
+import { handleWebhook, finalizeVote } from "./webhook.js";
+import {
+  addVote,
+  averageScore,
+  findTask,
+  hasVoted,
+  isReady,
+  listTasks,
+  listVotes,
+  removeTask,
+  voteCount,
+  VOTE_THRESHOLD,
+} from "./voting.js";
 
 export function createApp() {
   const app = express();
@@ -47,45 +56,62 @@ export function createApp() {
     res.status(removed ? 200 : 404).json({ ok: removed });
   });
 
-  app.post("/pending/batch", async (req, res, next) => {
+  app.get("/voting", (_req, res) => {
+    const tasks = listTasks().map((t) => ({
+      ...t,
+      voteCount: voteCount(t.repo, t.prOrIssueId),
+      threshold: VOTE_THRESHOLD,
+    }));
+    res.json(tasks);
+  });
+
+  app.get("/votes/:repo/:prOrIssueId", (req, res) => {
+    const repo = decodeURIComponent(req.params.repo);
+    const prOrIssueId = req.params.prOrIssueId;
+    const list = listVotes(repo, prOrIssueId);
+    res.json({
+      repo,
+      prOrIssueId,
+      votes: list,
+      count: list.length,
+      threshold: VOTE_THRESHOLD,
+      ready: isReady(repo, prOrIssueId),
+    });
+  });
+
+  app.post("/vote", async (req, res, next) => {
     try {
-      const count = parseBatchCount(req.body?.count);
-      const signing = readBatchSigningConfig();
-      if (!signing) {
-        res.status(503).json({ error: "signing config is incomplete" });
+      const repo = typeof req.body?.repo === "string" ? req.body.repo : "";
+      const prOrIssueId = typeof req.body?.prOrIssueId === "string" ? req.body.prOrIssueId : "";
+      const score = Number.parseInt(String(req.body?.score ?? ""), 10);
+      const signature = typeof req.body?.signature === "string" ? req.body.signature : "";
+      if (!repo || !prOrIssueId || !Number.isInteger(score) || score < 1 || score > 100 || !signature) {
+        res.status(400).json({ error: "repo, prOrIssueId, score (1-100), signature are required" });
         return;
       }
-      const created: PendingSubmission[] = [];
-      for (let i = 0; i < count; i++) {
-        const prOrIssueId = 1000 + i;
-        const repo = "demo/batch";
-        if (findPending(repo, String(prOrIssueId))) continue;
-        const nonce = takeNonce();
-        const score = valueContribution({
-          ...DEMO_SCORE_INPUT,
-          scoredInWindow: 0,
-        });
-        const signature = await signContribution(signing.privateKey, signing.chainId, signing.contractAddress, {
-          contributor: signing.contributor,
-          prOrIssueId: BigInt(prOrIssueId),
-          valuationScore: BigInt(score),
-          repo,
-          nonce,
-        });
-        const item: PendingSubmission = {
-          contributor: signing.contributor,
-          prOrIssueId: String(prOrIssueId),
-          valuationScore: String(score),
-          repo,
-          nonce: nonce.toString(),
-          signature,
-          kind: "pull_request",
-          title: `Batch contribution ${i + 1}`,
-        };
-        addPending(item);
-        created.push(item);
+      const task = findTask(repo, prOrIssueId);
+      if (!task) {
+        res.status(404).json({ error: "no voting task for this repo/prOrIssueId" });
+        return;
       }
-      res.json({ ok: true, count: created.length });
+      const voter = verifyVoteSignature(repo, prOrIssueId, score, signature);
+      if (!voter) {
+        res.status(401).json({ error: "invalid signature" });
+        return;
+      }
+      if (hasVoted(repo, prOrIssueId, voter)) {
+        res.status(409).json({ error: "this voter already voted" });
+        return;
+      }
+      addVote(repo, prOrIssueId, { voter, score, signature });
+      const count = voteCount(repo, prOrIssueId);
+      const ready = isReady(repo, prOrIssueId);
+      if (ready) {
+        const avg = averageScore(repo, prOrIssueId);
+        await finalizeVote(repo, prOrIssueId, task.kind, task.title, avg);
+        removeTask(repo, prOrIssueId);
+      }
+      res.json({ ok: true, count, threshold: VOTE_THRESHOLD, ready, voter });
     } catch (cause) {
       next(cause);
     }
@@ -102,12 +128,6 @@ export function createApp() {
   return app;
 }
 
-function parseBatchCount(raw: unknown): number {
-  const n = typeof raw === "number" ? raw : Number.parseInt(String(raw ?? "50"), 10);
-  if (!Number.isInteger(n) || n < 1) return 50;
-  return Math.min(n, 100);
-}
-
 function readBatchSigningConfig():
   | { privateKey: string; contributor: string; chainId: bigint; contractAddress: string }
   | undefined {
@@ -119,4 +139,16 @@ function readBatchSigningConfig():
   if (!isAddress(contributor) || !isAddress(contractAddress)) return undefined;
   if (!/^\d+$/.test(chainId)) return undefined;
   return { privateKey, contributor, chainId: BigInt(chainId), contractAddress };
+}
+
+/** Verify a voter's EIP-191 personal_sign over `repo:prOrIssueId:score`. Returns the recovered address or undefined. */
+function verifyVoteSignature(repo: string, prOrIssueId: string, score: number, signature: string): string | undefined {
+  const message = `${repo}:${prOrIssueId}:${score}`;
+  try {
+    const recovered = verifyMessage(message, signature);
+    if (!recovered || recovered === "0x0000000000000000000000000000000000000000") return undefined;
+    return getAddress(recovered);
+  } catch {
+    return undefined;
+  }
 }

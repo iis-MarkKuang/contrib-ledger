@@ -19,6 +19,7 @@ npx skills add therealharpaljadeja/monskills -a cursor -y
 | 异步执行、并行、reserve balance、EIP-7702、实时数据 | `concepts` |
 | 合约地址 | `addresses` |
 | 本仓库合约更新后部署 Anvil 和测试网 | `deploy-registry`（仓库自己的，不是上游 monskills） |
+| 跑完整演示流程（tunnel、webhook PR、3 人评分、提交、兑换徽章） | `e2e-demo`（仓库自己的） |
 | 代理钱包、CREATE2 部署 | `wallet` |
 | 前端钱包（Para） | `wallet-integration` |
 | Gas | `gas` |

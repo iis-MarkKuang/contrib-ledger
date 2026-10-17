@@ -1,5 +1,7 @@
-import { Contract, JsonRpcProvider, getAddress, isAddress } from "ethers";
+import { BrowserProvider, Contract, JsonRpcProvider, getAddress, isAddress } from "ethers";
 import type { NetworkChoice } from "./network";
+
+type EthereumProvider = { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> };
 
 const abi = [
   "event ContributionSubmitted(address indexed contributor, uint256 indexed prOrIssueId, uint256 valuationScore, uint256 timestamp, address indexed submitter)",
@@ -15,6 +17,51 @@ export type ContributionRow = {
   txHash: string;
   blockNumber: number;
 };
+
+const redeemAbi = [
+  "function availableScore(address contributor) view returns (uint256)",
+  "function usedScore(address contributor) view returns (uint256)",
+  "function balanceOf(address owner) view returns (uint256)",
+  "function redeemBadge(uint256 scoreCost) returns (uint256)",
+];
+
+export function redeemAddressFor(
+  choice: NetworkChoice,
+  env: { testnet?: string; anvil?: string } = {
+    testnet: import.meta.env.VITE_REDEEM_ADDRESS,
+    anvil: import.meta.env.VITE_ANVIL_REDEEM_ADDRESS,
+  },
+): string | undefined {
+  const raw = (choice === "anvil" ? env.anvil : env.testnet)?.trim();
+  return raw && isAddress(raw) ? getAddress(raw) : undefined;
+}
+
+export async function readRedeemStatus(
+  rpcUrl: string,
+  redeemAddress: string,
+  contributor: string,
+): Promise<{ available: string; used: string; badges: string }> {
+  const contract = new Contract(redeemAddress, redeemAbi, new JsonRpcProvider(rpcUrl));
+  const [available, used, badges] = await Promise.all([
+    contract.availableScore(contributor),
+    contract.usedScore(contributor),
+    contract.balanceOf(contributor),
+  ]);
+  return { available: available.toString(), used: used.toString(), badges: badges.toString() };
+}
+
+export async function redeemBadge(
+  ethereum: EthereumProvider,
+  redeemAddress: string,
+  scoreCost: bigint,
+): Promise<string> {
+  const provider = new BrowserProvider(ethereum);
+  const signer = await provider.getSigner();
+  const contract = new Contract(redeemAddress, redeemAbi, signer);
+  const tx = await contract.redeemBadge(scoreCost);
+  const receipt = await tx.wait();
+  return receipt?.hash ?? tx.hash;
+}
 
 /** Public Monad testnet RPC rejects eth_getLogs when toBlock - fromBlock is greater than 100. */
 export const MAX_BLOCK_DISTANCE = 100;
@@ -96,9 +143,10 @@ export async function readContributor(
   rpcUrl: string,
   address: string,
   contributor: string,
-): Promise<{ score: string; tokenIds: string[] }> {
+): Promise<{ score: string; tokenIds: string[]; balance: bigint }> {
   const contract = registry(rpcUrl, address);
   const score = await contract.getContributorScore(contributor);
+  const balance = (await contract.balanceOf(contributor)) as bigint;
   const minted = await queryInWindows(contract, contract.filters.ReputationMinted(contributor), rpcUrl);
   const tokenIds: string[] = [];
   for (const log of minted) {
@@ -106,7 +154,7 @@ export async function readContributor(
     const owner = (await contract.ownerOf(tokenId)) as string;
     if (owner.toLowerCase() === contributor.toLowerCase()) tokenIds.push(tokenId.toString());
   }
-  return { score: score.toString(), tokenIds };
+  return { score: score.toString(), tokenIds, balance };
 }
 
 function registry(rpcUrl: string, address: string): Contract {
