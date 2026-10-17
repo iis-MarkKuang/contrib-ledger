@@ -2,7 +2,7 @@
 
 ## 目标
 
-`web/` 用 Vite + React + ethers v6 启动。页面能连接 MetaMask，并在链 id 不是 10143 时提示切换到 Monad 测试网。切换参数来自 `docs/monad-testnet.md`，不另抄一套 RPC。
+`web/` 用 Vite + React + ethers v6 启动。页面能连接 MetaMask。页面上的网络框默认是 Monad 测试网 `10143`，也可以改到本地 Anvil `31337`。选中后让钱包切到对应的链。测试网参数来自 `docs/monad-testnet.md`。
 
 ## Non-goals
 
@@ -22,4 +22,4 @@
 
 ## 完成状态
 
-未开始
+完成。错链判断有单测；页面在没有 MetaMask 时显示安装提示。进度：[progress/T10-web-shell.md](../progress/T10-web-shell.md)。

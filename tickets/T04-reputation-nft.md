@@ -22,4 +22,4 @@
 
 ## 完成状态
 
-未开始
+完成。`ReputationNftTest` 通过：`ownerOf` 是贡献者，余额为 1。进度：[progress/T04-reputation-nft.md](../progress/T04-reputation-nft.md)。

@@ -39,7 +39,7 @@ web 读事件，刷新看板
 
 ## 合约要点
 
-EIP-712 类型，链上链下必须同一串：
+EIP-712 域：`name = ContributionRegistry`，`version = 1`。类型串链上链下必须同一串：
 
 ```text
 Contribution(address contributor,uint256 prOrIssueId,uint256 valuationScore,string repo,uint256 nonce)
@@ -89,6 +89,34 @@ sequenceDiagram
 ```
 
 N 用 50。不够讲清楚再加，不超过 100，避免打满公共 RPC。
+
+## 估值常量
+
+公式在需求文档第 7 节。封顶数字在 `server/src/valuation.ts`：
+
+- 质量分封顶 20，规模分封顶 30，维护者分封顶 10。基础分不封顶，负数按 0。
+- 该贡献者在窗口内已经计分达到 3 次，这一次得 0。
+
+Webhook 不分析 diff。每条演示记录用基础分 10、质量分 10、规模分 10、维护者分 5。窗口计数是当前进程里，这个地址已经进入待提交列表的条数。
+
+## 演示地址
+
+演示不另建一批钱包：
+
+- 维护者一个地址。私钥只放 `.env` 的 `MAINTAINER_PRIVATE_KEY`，不进仓库和聊天。测试网部署前由用户自己写入。
+- 操作者一个 MetaMask，负责付 gas。它的地址放在 `DEMO_CONTRIBUTOR_ADDRESS`。Webhook 签出来的贡献者就是这个地址。
+- 并发 50 笔由这一个 MetaMask 发出。看板上要出现别的贡献者时，地址在预置数据里本地生成，不向用户要私钥。
+
+## 前端网络
+
+页面上有一个网络框，默认选中 Monad 测试网。演示只部署测试网；框里可以改到本地 Anvil，用来看本地节点。
+
+- 测试网：`10143`，`https://testnet-rpc.monad.xyz`，符号 MON，浏览器 `https://testnet.monadscan.com`。数字来自 [docs/monad-testnet.md](docs/monad-testnet.md)。
+- Anvil：`31337`，`http://127.0.0.1:8545`。
+
+选中一项时，如果已经装了 MetaMask，就让钱包切到那条链。MetaMask 账户在两条链上是同一个地址。Anvil 页面另外标出本机账户 `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`，查询框也默认填这个地址。测试网合约地址用 `VITE_CONTRACT_ADDRESS`。Anvil 用 `VITE_ANVIL_CONTRACT_ADDRESS`，没填时用 Anvil 第一个账户部署出来的 `0x5FbDB2315678afecb367f032d93F642f64180aa3`。两条网络不共用一个合约地址。地址上没有合约代码时，页面直接说明，不再把它当成空的贡献列表。
+
+后端 EIP-712 签名的 chain id 默认也是 `10143`。本地 Anvil 测试在测试里单独使用 `31337`。
 
 ## 红线
 

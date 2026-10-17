@@ -22,4 +22,4 @@ Anvil 运行中执行 script，`cast code <地址>` 不是空。
 
 ## 完成状态
 
-未开始
+完成。本地部署到 `0x5FbDB2315678afecb367f032d93F642f64180aa3`，`cast code` 非空。进度：[progress/T05-anvil-deploy.md](../progress/T05-anvil-deploy.md)。

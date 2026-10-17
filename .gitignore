@@ -6,5 +6,5 @@ dist/
 out/
 cache/
 broadcast/
-lib/
+contracts/lib/**/.git
 .DS_Store

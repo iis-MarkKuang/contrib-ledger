@@ -22,4 +22,4 @@
 
 ## 完成状态
 
-未开始
+完成。`npm run build` 通过，`GET /health` 返回 200。进度：[progress/T06-server-skeleton.md](../progress/T06-server-skeleton.md)。

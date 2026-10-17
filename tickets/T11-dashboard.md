@@ -22,4 +22,4 @@ Anvil 上提交一笔（用 cast 即可），刷新页面能看到该分数和�
 
 ## 完成状态
 
-未开始
+完成。Anvil 上提交一笔后，页面能看到 15 分和声誉 NFT 1。进度：[progress/T11-dashboard.md](../progress/T11-dashboard.md)。

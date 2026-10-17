@@ -8,15 +8,14 @@
 
 ## 现在有什么
 
-目录和空壳已经在。合约还不能编译：这台机器没有 Foundry。服务只有一个健康检查。页面只有一段说明。
+合约、链下签名和 webhook 已经能在本地跑通。页面能连 MetaMask，在 Monad 测试网和本地 Anvil 之间切换，并读出贡献、积分和声誉 NFT。自己提交交易还在后面的票里。进度记在 [progress/](progress/)，下一张见 [ROADMAP.md](ROADMAP.md)。
 
 | 路径 | 状态 |
 | --- | --- |
-| `contracts/` | Foundry 配置和空的 `ContributionRegistry`。存储、验签、NFT 还没写 |
-| `server/` | `GET /health` |
-| `web/` | 一页说明 |
+| `contracts/` | `ContributionRegistry`：EIP-712 验签、积分、声誉 NFT。`forge test` 通过 |
+| `server/` | 健康检查、估值、EIP-712 签名、`POST /webhook` |
+| `web/` | 连接 MetaMask，选择网络，看板读链 |
 | `SOLUTION.md` | 架构、依赖、时序图 |
-| `ROADMAP.md` | 实现顺序。下一张是 T01 |
 
 不做的事：DAO、预言机、跨链、可交易代币、contract.dev、嵌入式钱包。社区挑战先搁置。
 
@@ -34,7 +33,7 @@ GitHub webhook
 
 ## 本地运行
 
-后端和页面不需要密钥。
+需要 Foundry ≥ 1.8，并且 `forge` 在 `PATH` 里。
 
 ```bash
 cp .env.example .env
@@ -47,15 +46,13 @@ cd web && npm install && npm run dev
 
 健康检查：`curl http://127.0.0.1:8787/health`
 
-合约要等 Foundry ≥ 1.8 装好之后：
-
 ```bash
 cd contracts
-forge build
+forge test --network monad
 anvil --network monad
 ```
 
-`foundry.toml` 里已经写了 `network = "monad"`。本地链是空的 Anvil，不 fork 测试网。
+`foundry.toml` 里已经写了 `network = "monad"`。本地链是空的 Anvil，不 fork 测试网。签名用的 chain id 默认是测试网 `10143`。Anvil 上的测试单独使用 `31337`。
 
 ## 配置
 

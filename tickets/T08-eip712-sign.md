@@ -23,4 +23,4 @@ Anvil 上部署合约，后端签一条，`cast send` 或一个小脚本提交�
 
 ## 完成状态
 
-未开始
+完成。Anvil 上维护者签名可以 `submitContribution`，另一把私钥签的同一类载荷被拒绝。进度：[progress/T08-eip712-sign.md](../progress/T08-eip712-sign.md)。

@@ -24,4 +24,4 @@
 
 ## 完成状态
 
-未开始
+完成。Foundry 1.8.5，`forge build` 退出码 0。进度：[progress/T01-foundry-skeleton.md](../progress/T01-foundry-skeleton.md)。

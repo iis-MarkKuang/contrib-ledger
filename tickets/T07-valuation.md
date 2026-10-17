@@ -22,4 +22,4 @@
 
 ## 完成状态
 
-未开始
+完成。`npm test` 覆盖相加、质量分封顶、窗口满额得 0。进度：[progress/T07-valuation.md](../progress/T07-valuation.md)。

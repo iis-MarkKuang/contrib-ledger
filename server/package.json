@@ -3,11 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "node --env-file=../.env --import tsx src/index.ts",
     "build": "tsc --noEmit",
-    "start": "tsx src/index.ts"
+    "start": "node --env-file=../.env --import tsx src/index.ts",
+    "test": "node --import tsx --test src/**/*.test.ts"
   },
   "dependencies": {
+    "ethers": "^6.15.0",
     "express": "^5.1.0"
   },
   "devDependencies": {

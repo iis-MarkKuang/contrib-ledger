@@ -17,6 +17,7 @@
 | 何时读 | 文件 |
 | --- | --- |
 | 怎么验证、何时提问 | [docs/agent-principles.md](docs/agent-principles.md) |
+| 每张票的进度、踩过的坑 | [progress/](progress/) 、[pitfalls.md](pitfalls.md) |
 | 方案、票、路线图怎么写 | [docs/workflow.md](docs/workflow.md) |
 | 语言、框架、什么时候用 Rust | [docs/stack.md](docs/stack.md) |
 | 为什么不 fork Monad | [docs/monad-fork.md](docs/monad-fork.md) |

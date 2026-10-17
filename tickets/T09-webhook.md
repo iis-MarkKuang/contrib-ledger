@@ -22,4 +22,4 @@
 
 ## 完成状态
 
-未开始
+完成。合法签名的 merged pull request 进入 `GET /pending`；错误签名返回 401；未合并的 PR 不产生记录。进度：[progress/T09-webhook.md](../progress/T09-webhook.md)。

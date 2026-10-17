@@ -22,4 +22,4 @@
 
 ## 完成状态
 
-未开始
+完成。`ContributionStorageTest` 2 个测试通过。进度：[progress/T02-contribution-storage.md](../progress/T02-contribution-storage.md)。

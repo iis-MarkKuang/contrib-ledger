@@ -24,4 +24,4 @@
 
 ## 完成状态
 
-未开始
+完成。`SubmitContributionTest` 4 个测试通过。进度：[progress/T03-eip712-submit.md](../progress/T03-eip712-submit.md)。
