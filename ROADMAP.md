@@ -17,8 +17,8 @@
 | 11 | [T11 看板读链](tickets/T11-dashboard.md) | 完成 | T05, T10 |
 | 12 | [T12 提交一笔](tickets/T12-submit-one.md) | 完成 | T08, T11 |
 | 13 | [T13 并发提交](tickets/T13-submit-batch.md) | 完成 | T12 |
-| 14 | [T14 测试网部署](tickets/T14-testnet-deploy.md) | 下一张 | T05, T13 |
-| 15 | [T15 预置演示数据](tickets/T15-demo-fixtures.md) | 未开始 | T09, T14 |
+| 14 | [T14 测试网部署](tickets/T14-testnet-deploy.md) | 完成 | T05, T13 |
+| 15 | [T15 预置演示数据](tickets/T15-demo-fixtures.md) | 下一张 | T09, T14 |
 | 16 | [T17 模拟投票按钮](tickets/T17-mock-vote.md) | 未开始 | T10 |
 | — | [T16 社区挑战](tickets/T16-challenge.md) | 搁置 | T14，且用户确认还有时间 |
 | — | [T18 多人评分](tickets/T18-multi-scorer.md) | 可选 | T14，且用户确认还有时间 |

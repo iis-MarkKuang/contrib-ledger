@@ -25,4 +25,4 @@
 
 ## 完成状态
 
-未开始
+完成。进度：[progress/T14-testnet-deploy.md](../progress/T14-testnet-deploy.md)。源码验证未做，verifier URL 待确认。
